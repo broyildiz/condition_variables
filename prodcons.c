@@ -26,6 +26,16 @@ static ITEM buffer[BUFFER_SIZE];
 static void rsleep (int t);			// already implemented (see below)
 static ITEM get_next_item (void);	// already implemented (see below)
 
+static pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t cv  = PTHREAD_COND_INITIALIZER;
+
+// helper
+int mod(int a, int b)
+{
+    int r = a % b;
+    return r < 0 ? r + b : r;
+}
+
 /*
  * stuff for circular buffer
  */
@@ -51,6 +61,11 @@ static ITEM pop(void) {
     return buffer[read_idx++ % BUFFER_SIZE];
 }
 
+static ITEM peek(void) {
+    return buffer[mod(write_idx - 1, BUFFER_SIZE)];
+    /* return buffer[(write_idx - 1) % BUFFER_SIZE]; */
+}
+
 static void push(ITEM item) {
     if (isFull()) {
         printf("push to full buffer is illegal!\n");
@@ -69,16 +84,19 @@ static void printBuf(void) {
 }
 
 /* producer thread */
-static void * 
+static void *
 producer (void * arg)
 {
     while (true /* TODO: not all items produced */)
     {
-        // TODO: 
+        // TODO:
         // * get the new item
-		
+        /* ITEM new_item = get_next_item(); */
+        static int new_item_ctr = 0;
+        ITEM new_item = new_item_ctr++;
+
         rsleep (100);	// simulating all kind of activities...
-		
+
 		// TODO:
 		// * put the item into buffer[]
 		//
@@ -91,12 +109,29 @@ producer (void * arg)
         //      mutex-unlock;
         //
         // (see condition_test() in condition_basics.c how to use condition variables)
+        //
+        pthread_mutex_lock(&mx);
+        printf("new_item %d\n", new_item);
+        printf("peek %d\n", peek());
+        while (isFull() || new_item != peek() + 1) {
+            printf("producer waiting\n");
+            pthread_cond_wait(&cv, &mx);
+        }
+        printf("push %d\n", new_item);
+        push(new_item);
+        // TODO: handle error?
+        pthread_cond_signal(&cv);
+        pthread_mutex_unlock(&mx);
+
+
+        if (new_item == NROF_ITEMS) break;
     }
-	return (NULL);
+
+    return (NULL);
 }
 
 /* consumer thread */
-static void * 
+static void *
 consumer (void * arg)
 {
     while (true /* TODO: not all items retrieved from buffer[] */)
@@ -112,36 +147,61 @@ consumer (void * arg)
         //      critical-section;
         //      possible-cv-signals;
         //      mutex-unlock;
-		
+        pthread_mutex_lock(&mx);
+        while (isEmpty()) {
+            printf("consumer waiting\n");
+            pthread_cond_wait(&cv, &mx);
+        }
+        ITEM item = pop();
+        printf("pop %d\n", item);
+        // TODO: handle error?
+        pthread_cond_signal(&cv);
+        pthread_mutex_unlock(&mx);
+
+
+        if (item == NROF_ITEMS) break;
+
         rsleep (100);		// simulating all kind of activities...
     }
-	return (NULL);
+
+    return (NULL);
 }
 
 int main (void)
 {
+    // don't delete, this is important for the program to run successfully
     memset(buffer, -1, sizeof(buffer));
     printBuf();
-    push(1);
-    push(2);
-    push(3);
-    push(4);
-    push(5);
-    push(6);
-    pop();
-    pop();
-    pop();
-    pop();
-    pop();
-    int p = pop();
-    printf("%d\n", p);
-    printBuf();
+
+    /* printBuf(); */
+    /* push(1); */
+    /* push(2); */
+    /* push(3); */
+    /* push(4); */
+    /* push(5); */
+    /* push(6); */
+    /* pop(); */
+    /* pop(); */
+    /* pop(); */
+    /* pop(); */
+    /* pop(); */
+    /* int p = pop(); */
+    /* printf("%d\n", p); */
+    /* printBuf(); */
 
 
     // TODO: 
     // * startup the producer threads and the consumer thread
     // * wait until all threads are finished  
-    
+    pthread_t consumer_thread;
+    pthread_t producer_thread;
+
+    pthread_create(&consumer_thread, NULL, consumer, NULL);
+    pthread_create(&producer_thread, NULL, producer, NULL);
+
+    pthread_join(producer_thread, NULL);
+    pthread_join(consumer_thread, NULL);
+
     /* int i; // Generic counter */
     /*  */
     /* int buffer_length = 0;	// Keep track of the number of items in the buffer */
