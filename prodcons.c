@@ -82,9 +82,40 @@ int main (void)
     // TODO: 
     // * startup the producer threads and the consumer thread
     // * wait until all threads are finished  
-    int i;
-    for(i = 0; i < 15; i++)
+    
+    int i; // Generic counter
+
+    int buffer_length = 0;	// Keep track of the number of items in the buffer
+    int write_index = 0;	// Keep track of where we are in the buffer
+    int read_index = 0;		// Keep track of where to read
+
+    // Loop through the cirvular array, a bunch of times 
+    // This way we check if the circularity works
+    for(i=0; i < BUFFER_SIZE+20; i++)
+    {
+    	if(buffer_length == BUFFER_SIZE-1) // Buffer lenght starts at 0, so -1 is added
+    	{
+    		buffer_length = 0; // dont remember the last round essentially
+    		write_index = 0;   // Restart at the beginning of the buffer
+    	}
+
+    	buffer[write_index] = i; 	// Write something to the buffer
+    	write_index++;				// Keep track of where we need to be
+    	buffer_length++;			// A new item has been added, keep track of it
+    }
+
+    for(i = 0; i < BUFFER_SIZE; i++) // Print the contents of the buffer
+    {
+    	printf("%d\n", buffer[i]);
+    }
+
+    printf("\n");
+
+    for(i = 0; i < NROF_ITEMS; i++) // Print the output of the get_next_item() function
+    {
     	printf("%d\n", get_next_item());
+    }
+
     return (0);
 }
 
