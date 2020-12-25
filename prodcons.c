@@ -26,6 +26,47 @@ static ITEM buffer[BUFFER_SIZE];
 static void rsleep (int t);			// already implemented (see below)
 static ITEM get_next_item (void);	// already implemented (see below)
 
+/*
+ * stuff for circular buffer
+ */
+static int read_idx = 0;
+static int write_idx = 0;
+static int nrof_items_buf = 0;
+
+static bool isEmpty(void) {
+    return nrof_items_buf == 0;
+}
+
+static bool isFull(void) {
+    return nrof_items_buf == BUFFER_SIZE;
+}
+
+static ITEM pop(void) {
+    if (isEmpty()) {
+        printf("pop from empty buffer is illegal!\n");
+        return -1;
+    }
+
+    nrof_items_buf--;
+    return buffer[read_idx++ % BUFFER_SIZE];
+}
+
+static void push(ITEM item) {
+    if (isFull()) {
+        printf("push to full buffer is illegal!\n");
+        return;
+    }
+
+    nrof_items_buf++;
+    buffer[write_idx++ % BUFFER_SIZE] = item;
+}
+
+static void printBuf(void) {
+    for (int i = 0; i < BUFFER_SIZE; i++) {
+        printf("%d ", buffer[i]);
+    }
+    printf("\n");
+}
 
 /* producer thread */
 static void * 
@@ -79,44 +120,62 @@ consumer (void * arg)
 
 int main (void)
 {
+    memset(buffer, -1, sizeof(buffer));
+    printBuf();
+    push(1);
+    push(2);
+    push(3);
+    push(4);
+    push(5);
+    push(6);
+    pop();
+    pop();
+    pop();
+    pop();
+    pop();
+    int p = pop();
+    printf("%d\n", p);
+    printBuf();
+
+
     // TODO: 
     // * startup the producer threads and the consumer thread
     // * wait until all threads are finished  
     
-    int i; // Generic counter
-
-    int buffer_length = 0;	// Keep track of the number of items in the buffer
-    int write_index = 0;	// Keep track of where we are in the buffer
-    int read_index = 0;		// Keep track of where to read
-
-    // Loop through the cirvular array, a bunch of times 
-    // This way we check if the circularity works
-    for(i=0; i < BUFFER_SIZE+20; i++)
-    {
-    	if(buffer_length == BUFFER_SIZE-1) // Buffer lenght starts at 0, so -1 is added
-    	{
-    		buffer_length = 0; // dont remember the last round essentially
-    		write_index = 0;   // Restart at the beginning of the buffer
-    	}
-
-    	buffer[write_index] = i; 	// Write something to the buffer
-    	write_index++;				// Keep track of where we need to be
-    	buffer_length++;			// A new item has been added, keep track of it
-    }
-
-    for(i = 0; i < BUFFER_SIZE; i++) // Print the contents of the buffer
-    {
-    	printf("%d\n", buffer[i]);
-    }
-
-    printf("\n");
-
-    for(i = 0; i < NROF_ITEMS; i++) // Print the output of the get_next_item() function
-    {
-    	printf("%d\n", get_next_item());
-    }
-
-    return (0);
+    /* int i; // Generic counter */
+    /*  */
+    /* int buffer_length = 0;	// Keep track of the number of items in the buffer */
+    /* int write_index = 0;	// Keep track of where we are in the buffer */
+    /* int read_index = 0;		// Keep track of where to read */
+    /*  */
+    /* // Loop through the cirvular array, a bunch of times  */
+    /* // This way we check if the circularity works */
+    /* for(i=0; i < BUFFER_SIZE+20; i++) */
+    /* { */
+    /*     if(buffer_length == BUFFER_SIZE-1) // Buffer lenght starts at 0, so -1 is added */
+    /*     { */
+    /*         buffer_length = 0; // dont remember the last round essentially */
+    /*         write_index = 0;   // Restart at the beginning of the buffer */
+    /*     } */
+    /*  */
+    /*     buffer[write_index] = i; 	// Write something to the buffer */
+    /*     write_index++;				// Keep track of where we need to be */
+    /*     buffer_length++;			// A new item has been added, keep track of it */
+    /* } */
+    /*  */
+    /* for(i = 0; i < BUFFER_SIZE; i++) // Print the contents of the buffer */
+    /* { */
+    /*     printf("%d\n", buffer[i]); */
+    /* } */
+    /*  */
+    /* printf("\n"); */
+    /*  */
+    /* for(i = 0; i < NROF_ITEMS; i++) // Print the output of the get_next_item() function */
+    /* { */
+    /*     printf("%d\n", get_next_item()); */
+    /* } */
+    /*  */
+    /* return (0); */
 }
 
 /*
