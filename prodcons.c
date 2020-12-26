@@ -29,10 +29,13 @@ static ITEM get_next_item (void);	// already implemented (see below)
 static pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t cv  = PTHREAD_COND_INITIALIZER;
 
+static int new_item_ctr = 0;
+
 // helper
 int mod(int a, int b)
 {
     int r = a % b;
+    // printf("%d = %d mod %d\n", r, a, b); // remove
     return r < 0 ? r + b : r;
 }
 
@@ -48,6 +51,7 @@ static bool isEmpty(void) {
 }
 
 static bool isFull(void) {
+	printf("nrof_items_buf == BUFFER_SIZE? = %d\n", nrof_items_buf == BUFFER_SIZE);
     return nrof_items_buf == BUFFER_SIZE;
 }
 
@@ -58,11 +62,18 @@ static ITEM pop(void) {
     }
 
     nrof_items_buf--;
+    // printf("The old read index = %d\n", read_idx);
+    // printf("The new read index = %d\n", read_idx + 1);
     return buffer[read_idx++ % BUFFER_SIZE];
 }
 
 static ITEM peek(void) {
+	// printf("buffer[mod(write_idx - 1, BUFFER_SIZE)] = %d\n", buffer[mod(write_idx - 1, BUFFER_SIZE)]); // remove
+	// printf("buffer[mod(%d - 1, %d)] = %d\n", write_idx, BUFFER_SIZE, buffer[mod(write_idx - 1, BUFFER_SIZE)]); // remove
+	// printf("buffer[%d] = %d\n", mod(write_idx - 1, BUFFER_SIZE), buffer[mod(write_idx - 1, BUFFER_SIZE)]); // remove
+	
     return buffer[mod(write_idx - 1, BUFFER_SIZE)];
+    // return buffer[mod(write_idx - 1, BUFFER_SIZE)];
     /* return buffer[(write_idx - 1) % BUFFER_SIZE]; */
 }
 
@@ -73,6 +84,8 @@ static void push(ITEM item) {
     }
 
     nrof_items_buf++;
+    // printf("The old write index = %d\n", write_idx);
+    // printf("The new write index = %d\n", write_idx + 1);
     buffer[write_idx++ % BUFFER_SIZE] = item;
 }
 
@@ -92,10 +105,7 @@ producer (void * arg)
         // TODO:
         // * get the new item
         /* ITEM new_item = get_next_item(); */
-        static int new_item_ctr = 0;
-        ITEM new_item = new_item_ctr++;
 
-        rsleep (100);	// simulating all kind of activities...
 
 		// TODO:
 		// * put the item into buffer[]
@@ -110,23 +120,39 @@ producer (void * arg)
         //
         // (see condition_test() in condition_basics.c how to use condition variables)
         //
+
+        rsleep (100);	// simulating all kind of activities...
+
         pthread_mutex_lock(&mx);
+
+		ITEM new_item = new_item_ctr++;
+        if (new_item == NROF_ITEMS) break;
+        
+
+        
+
+        printf("control is at producer with number %d\n", new_item);
         printf("new_item %d\n", new_item);
-        printf("peek %d\n", peek());
+        // printf("peek %d\n", peek());
+        // printf("peek + 1 = %d\n", peek() + 1); // remove
+        printf("new_item != peek() + 1? = %d\n", new_item != peek() + 1);
         while (isFull() || new_item != peek() + 1) {
-            printf("producer waiting\n");
+            // printf("producer waiting, holding item: %d\n", new_item);
             pthread_cond_wait(&cv, &mx);
         }
         printf("push %d\n", new_item);
         push(new_item);
+        printBuf();
+        printf("Number of items = %d\n", nrof_items_buf);
         // TODO: handle error?
-        pthread_cond_signal(&cv);
+        // pthread_cond_signal(&cv);
+		pthread_cond_broadcast(&cv);
         pthread_mutex_unlock(&mx);
 
 
-        if (new_item == NROF_ITEMS) break;
+        
     }
-
+    printf("wait a minute\n");
     return (NULL);
 }
 
@@ -148,15 +174,29 @@ consumer (void * arg)
         //      possible-cv-signals;
         //      mutex-unlock;
         pthread_mutex_lock(&mx);
+        printf("isEmpty? = %d\n", isEmpty());
         while (isEmpty()) {
             printf("consumer waiting\n");
             pthread_cond_wait(&cv, &mx);
+            printf("\t\t\t\t\t\thmm\n");
         }
+   //      if(isEmpty())
+   //      {
+   //      	printf("consumer waiting\n");
+	  //       // pthread_cond_signal(&cv);
+			// pthread_cond_broadcast(&cv);
+   //      	pthread_mutex_unlock(&mx);
+   //      	continue;
+   //      }
         ITEM item = pop();
-        printf("pop %d\n", item);
+        printf("\t\t\t\t\t\tpop %d\n", item);
+        printBuf();
+        printf("Number of items = %d\n", nrof_items_buf);
         // TODO: handle error?
-        pthread_cond_signal(&cv);
+        // pthread_cond_signal(&cv);
+		pthread_cond_broadcast(&cv);
         pthread_mutex_unlock(&mx);
+        // printf("yes I did unlock all\n");
 
 
         if (item == NROF_ITEMS) break;
@@ -197,9 +237,21 @@ int main (void)
     pthread_t producer_thread;
 
     pthread_create(&consumer_thread, NULL, consumer, NULL);
-    pthread_create(&producer_thread, NULL, producer, NULL);
 
-    pthread_join(producer_thread, NULL);
+    int i =0;
+    for(i = 0; i < NROF_PRODUCERS; i++)
+    {
+    	pthread_create(&producer_thread, NULL, producer, NULL);	
+    }
+
+    // pthread_create(&producer_thread, NULL, producer, NULL);
+    
+    for(i = 0; i < NROF_PRODUCERS; i++)
+    {
+    	pthread_join(producer_thread, NULL);	
+    }
+
+    
     pthread_join(consumer_thread, NULL);
 
     /* int i; // Generic counter */
