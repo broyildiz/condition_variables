@@ -173,22 +173,6 @@ int main (void)
     memset(buffer, -1, sizeof(buffer));
     printBuf();
 
-    /* printBuf(); */
-    /* push(1); */
-    /* push(2); */
-    /* push(3); */
-    /* push(4); */
-    /* push(5); */
-    /* push(6); */
-    /* pop(); */
-    /* pop(); */
-    /* pop(); */
-    /* pop(); */
-    /* pop(); */
-    /* int p = pop(); */
-    /* printf("%d\n", p); */
-    /* printBuf(); */
-
 
     // TODO: 
     // * startup the producer threads and the consumer thread

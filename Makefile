@@ -1,4 +1,4 @@
-BINARIES = prodcons
+BINARIES = prodcons test
 
 CC = gcc
 CFLAGS = -Wall -g -c
@@ -11,3 +11,6 @@ clean:
 
 prodcons: prodcons.o
 prodcons.o: prodcons.c prodcons.h
+
+test: test.o
+test.o: test.c prodcons.h
