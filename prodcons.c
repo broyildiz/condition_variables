@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <pthread.h>
 
+#include <sys/syscall.h>
 #include "prodcons.h"
 
 static ITEM buffer[BUFFER_SIZE];
@@ -87,6 +88,7 @@ static void printBuf(void) {
 static void *
 producer (void * arg)
 {
+    pid_t tid = syscall(SYS_gettid);
     while (true /* TODO: not all items produced */)
     {
         // TODO:
@@ -111,13 +113,13 @@ producer (void * arg)
         // (see condition_test() in condition_basics.c how to use condition variables)
         //
         pthread_mutex_lock(&mx);
-        printf("new_item %d\n", new_item);
-        printf("peek %d\n", peek());
+        printf("PTID = %d, new_item %d\n", tid,  new_item);
+        printf("PTID = %d, peek %d\n", tid,  peek());
         while (isFull() || new_item != peek() + 1) {
-            printf("producer waiting\n");
+            printf("PTID = %d, producer waiting\n",tid);
             pthread_cond_wait(&cv, &mx);
         }
-        printf("push %d\n", new_item);
+        printf("PTID = %d, push %d\n", tid,  new_item);
         push(new_item);
         // TODO: handle error?
         pthread_cond_signal(&cv);
@@ -134,6 +136,7 @@ producer (void * arg)
 static void *
 consumer (void * arg)
 {
+    pid_t tid = syscall(SYS_gettid);
     while (true /* TODO: not all items retrieved from buffer[] */)
     {
         // TODO: 
@@ -149,11 +152,11 @@ consumer (void * arg)
         //      mutex-unlock;
         pthread_mutex_lock(&mx);
         while (isEmpty()) {
-            printf("consumer waiting\n");
+            printf("PTID = %d, consumer waiting\n", tid);
             pthread_cond_wait(&cv, &mx);
         }
         ITEM item = pop();
-        printf("pop %d\n", item);
+        printf("PTID = %d, pop %d\n", tid,  item);
         // TODO: handle error?
         pthread_cond_signal(&cv);
         pthread_mutex_unlock(&mx);
@@ -173,17 +176,53 @@ int main (void)
     memset(buffer, -1, sizeof(buffer));
     printBuf();
 
+    /* printBuf(); */
+    /* push(1); */
+    /* push(2); */
+    /* push(3); */
+    /* push(4); */
+    /* push(5); */
+    /* push(6); */
+    /* pop(); */
+    /* pop(); */
+    /* pop(); */
+    /* pop(); */
+    /* pop(); */
+    /* int p = pop(); */
+    /* printf("%d\n", p); */
+    /* printBuf(); */
+
 
     // TODO: 
     // * startup the producer threads and the consumer thread
     // * wait until all threads are finished  
     pthread_t consumer_thread;
-    pthread_t producer_thread;
+    // pthread_t producer_thread;
 
     pthread_create(&consumer_thread, NULL, consumer, NULL);
-    pthread_create(&producer_thread, NULL, producer, NULL);
+    // pthread_create(&producer_thread, NULL, producer, NULL);
 
-    pthread_join(producer_thread, NULL);
+    // pthread_join(producer_thread, NULL);
+
+
+    pthread_mutex_lock(&mx);
+    
+    pthread_t threads[NROF_PRODUCERS];
+
+    int i; 
+    for(i = 0; i < NROF_PRODUCERS; i++)
+    {
+        pthread_create(&threads[i], NULL, producer, NULL);
+    }
+
+    pthread_mutex_unlock(&mx);
+
+    for(i = 0; i < NROF_PRODUCERS; i++)
+    {
+        pthread_join(threads[i], NULL);
+    }
+
+
     pthread_join(consumer_thread, NULL);
 
     /* int i; // Generic counter */
