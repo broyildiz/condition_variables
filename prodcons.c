@@ -162,7 +162,7 @@ consumer (void * arg)
         pthread_mutex_unlock(&mx);
 
 
-        if (item == NROF_ITEMS) break;
+        if (item == NROF_ITEMS-1) break;
 
         rsleep (100);		// simulating all kind of activities...
     }
