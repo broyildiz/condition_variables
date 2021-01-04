@@ -14,30 +14,35 @@
 static void rsleep (int t);			// already implemented (see below)
 static ITEM get_next_item (void);	// already implemented (see below)
 
+
+/*
+ * Stuff for handling next item in buffer.
+ * The order of item placement should be strictly ascending [0..N]
+ */
 pthread_cond_t cv = PTHREAD_COND_INITIALIZER;
 pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
 int expected_item = 0;
 
+
+/*
+ * Circular buffer with syncronization support structures
+ */
 typedef struct
 {
-	ITEM buffer[BUFFER_SIZE];	// Bufffer that the producers store numbers in
-	sem_t occupied;	// Counting sempahore that keeps track of the number of items in the buffer
-	sem_t empty;	// Counting semaphore that keeps track of the empty spots in the buffer
-	int nextin;		// Write counter
-	int nextout;	// Read counter
-	sem_t pmut;		// Binary semaphore same as Mutex Lock and unlock
-	sem_t cmut;		// Binary semaphore same as Mutex Lock and unlock
-
+	ITEM buffer[BUFFER_SIZE]; 		// Buffer that the producers store numbers in
+	sem_t occupied;					// Counting sempahore that keeps track of the number of items in the buffer
+	sem_t empty;					// Counting semaphore that keeps track of the empty spots in the buffer
+	int nextin;						// Write counter
+	int nextout;					// Read counter
+	pthread_mutex_t pmut;			// Binary semaphore same as Mutex Lock and unlock
 } buffer_t;
 
-// Note: the pmut and cmut semaphores could (should?) be changed to actual mutexes
-// I chose to follow the example I found
-// Works essentially the same
-// Links to the example are above the main
 
-buffer_t buffer;
+/*
+ * THE circular buffer
+ */
+static buffer_t buffer;
 
-// static pthread_mutex_t mx = PTHREAD_MUTEX_INITIALIZER; // Not used
 
 /* Print the contents of the buffer*/
 static void printBuf(void) {
@@ -64,15 +69,10 @@ static void *producer(void *arg)
 		{
 			printf("Producer: %d\tdone\n", tid);
 
-			/* Not sure if this is the way we need to exit, perhaps dont do sem_post(&buffer.occupied); */
-
-			// Give semaphore+// Same as Mutex Unlock
-			// sem_post(&buffer.pmut);
-			// Increment the occupied semaphore. This way producers know there is one less available place in the buffer
-			// sem_post(&buffer.occupied);
-
 			return arg;
 		}
+
+		/********** handling next item ************/
 
 		pthread_mutex_lock(&mu);
 
@@ -82,15 +82,18 @@ static void *producer(void *arg)
 
 		expected_item++;
 
-		// same as Mutex Lock
-		sem_wait(&buffer.pmut);
+		/******************************************/
 
+
+		// same as Mutex Lock
+		pthread_mutex_lock(&buffer.pmut);
+
+		// We are in critical section, so signal other threads to continue
 		pthread_cond_broadcast(&cv);
 		pthread_mutex_unlock(&mu);
 
 		// If there is a free place in the buffer
 		sem_wait(&buffer.empty);
-
 
 		// Add item
 		buffer.buffer[buffer.nextin++] = next_item;
@@ -98,13 +101,11 @@ static void *producer(void *arg)
 		// Adjust becasue we have a circular buffer
 		buffer.nextin %= BUFFER_SIZE;
 
-		// Give semaphore+// Same as Mutex Unlock
-		sem_post(&buffer.pmut);
+		// Same as Mutex Unlock
+		pthread_mutex_unlock(&buffer.pmut);
 
 		// Increment the occupied semaphore. This way producers know there is one less available place in the buffer
 		sem_post(&buffer.occupied);
-
-		// break;
 	}
 
 	return arg;
@@ -127,8 +128,6 @@ static void *consumer(void *arg)
 	{
 		// Wait for items to be consumer
 		sem_wait(&buffer.occupied);
-		// Same as Mutex Lock
-		sem_wait(&buffer.cmut);
 
 		// Get next item
 		ITEM consume = buffer.buffer[buffer.nextout];
@@ -139,10 +138,9 @@ static void *consumer(void *arg)
 	    // This should be NROF_ITEMS -1
 	    // To implement this, the values send to the consumer should be aranged from smallest to largest
 	    // Otherwise the consumer will quit before the producers are done
-	    if(consume == NROF_ITEMS)
+	    if (consume == NROF_ITEMS)
 	    {
 			printf("Consumer: %d\tdone\n", tid);
-
 			return arg;
 	    }
 
@@ -151,11 +149,12 @@ static void *consumer(void *arg)
 
 	    // Increment read counter
 	    buffer.nextout++;
+
 	    // Adjust becasue we have a circular buffer
 	    buffer.nextout %= BUFFER_SIZE;
 
 	    // If we technically reached the end of the program, print what we received
-	    if(check_cnt == NROF_ITEMS)
+	    if (check_cnt == NROF_ITEMS)
 	    {
 	    	printf("\n");
 			int i;
@@ -165,20 +164,14 @@ static void *consumer(void *arg)
 			}
 			printf("\n");
 
-			// Uncomment the next two lines if you want the program to exit after it received all producer values
-			sem_post(&buffer.cmut);
 			break;
 	    }
 
-	    // Same as Mutex unlock
-		sem_post(&buffer.cmut);
 		// Decrement the empty sempahore.
 		// This way the procuders know there is a place in the buffer to produce stuff into
 		sem_post(&buffer.empty);
 
 		rsleep(100);
-
-		// break;
 	}
 
 	return arg;
@@ -207,10 +200,6 @@ int main(void)
 	// Init to BUFFER_SIZE becasue the whole buffer is empty
 	sem_init(&buffer.empty,0, BUFFER_SIZE);
 
-	// Init the mutexes, again: should be changed to actual mutexes
-	sem_init(&buffer.pmut, 0, 1);
-	sem_init(&buffer.cmut, 0, 1);
-
 	// Init read and write counters
 	buffer.nextout = 0;
 	buffer.nextin = 0;
@@ -221,8 +210,6 @@ int main(void)
 	pthread_t consumer_thread;
 	pthread_create(&consumer_thread, NULL, consumer, NULL);
 
-
-	// pthread_mutex_lock(&mx);
 
 	// Pool of producer threads
 	// Used later to join them all back
