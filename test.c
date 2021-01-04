@@ -14,7 +14,9 @@
 static void rsleep (int t);			// already implemented (see below)
 static ITEM get_next_item (void);	// already implemented (see below)
 
-// ITEM buffer[BUFFER_SIZE];
+pthread_cond_t cv = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t mu = PTHREAD_MUTEX_INITIALIZER;
+int expected_item = 0;
 
 typedef struct
 {
@@ -72,11 +74,23 @@ static void *producer(void *arg)
 			return arg;
 		}
 
-		// If there is a free place in the buffer
-		sem_wait(&buffer.empty);
+		pthread_mutex_lock(&mu);
+
+		while(next_item != expected_item) {
+			pthread_cond_wait(&cv, &mu);
+		}
+
+		expected_item++;
 
 		// same as Mutex Lock
 		sem_wait(&buffer.pmut);
+
+		pthread_cond_broadcast(&cv);
+		pthread_mutex_unlock(&mu);
+
+		// If there is a free place in the buffer
+		sem_wait(&buffer.empty);
+
 
 		// Add item
 		buffer.buffer[buffer.nextin++] = next_item;
